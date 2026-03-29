@@ -21,6 +21,10 @@ export default {
         var body = await request.json();
         return await handleGroq(body, env.GROQ_KEY);
       }
+      if (path === '/vision' && request.method === 'POST') {
+        var body = await request.json();
+        return await handleVision(body, env.GROQ_KEY);
+      }
       return makeJson({ status: 'ok', finnhub: !!env.FINNHUB_KEY, groq: !!env.GROQ_KEY }, 200);
     } catch (e) {
       return makeJson({ error: e.message }, 500);
@@ -91,11 +95,71 @@ async function handleGroq(body, key) {
 
   var text = data.choices[0].message.content || '';
   var cleaned = text.trim();
-  if (cleaned.indexOf('json') === 1) cleaned = cleaned.slice(7);
-  if (cleaned.charAt(0) === String.fromCharCode(96)) cleaned = cleaned.slice(3);
-  var last3 = cleaned.slice(-3);
-  if (last3 === String.fromCharCode(96,96,96)) cleaned = cleaned.slice(0, -3);
-  cleaned = cleaned.trim();
+  if (cleaned.charAt(0) !== '{' && cleaned.charAt(0) !== '[') {
+    var start = cleaned.indexOf('{');
+    if (start === -1) start = cleaned.indexOf('[');
+    if (start !== -1) cleaned = cleaned.slice(start);
+    var end = cleaned.lastIndexOf('}');
+    var end2 = cleaned.lastIndexOf(']');
+    var endIdx = end > end2 ? end : end2;
+    if (endIdx !== -1) cleaned = cleaned.slice(0, endIdx + 1);
+  }
+
+  try {
+    return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200);
+  } catch (e) {
+    return makeJson({ ok: true, data: { raw: text } }, 200);
+  }
+}
+
+async function handleVision(body, key) {
+  if (!key) return makeJson({ error: 'GROQ_KEY not set' }, 500);
+
+  var imageBase64 = body.image;
+  var prompt = body.prompt || 'Extract all stock holdings from this screenshot. Return JSON array with ticker, shares, avgCost fields.';
+
+  if (!imageBase64) return makeJson({ error: 'image required' }, 400);
+
+  var payload = JSON.stringify({
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    max_tokens: 1500,
+    temperature: 0.1,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/jpeg;base64,' + imageBase64 }
+          },
+          {
+            type: 'text',
+            text: prompt
+          }
+        ]
+      }
+    ]
+  });
+
+  var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + key
+    },
+    body: payload
+  });
+
+  var data = await r.json();
+  if (data.error) return makeJson({ ok: false, error: data.error.message }, 500);
+
+  var text = data.choices[0].message.content || '';
+  var cleaned = text.trim();
+  var start = cleaned.indexOf('[');
+  if (start !== -1) {
+    var end = cleaned.lastIndexOf(']');
+    if (end !== -1) cleaned = cleaned.slice(start, end + 1);
+  }
 
   try {
     return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200);
