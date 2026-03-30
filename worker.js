@@ -87,7 +87,7 @@ async function handleGeminiText(body, key) {
     generationConfig: { maxOutputTokens: maxTokens, temperature: 0.5 },
     systemInstruction: { parts: [{ text: '당신은 월스트리트 최고 투자 애널리스트입니다. 반드시 순수 JSON만 응답하세요. 한자나 중국어는 절대 사용하지 마세요. 한국어 또는 영어로만 작성하세요.' }] }
   });
-  var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key, {
+  var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload
   });
   var data = await r.json();
@@ -114,7 +114,7 @@ async function handleGeminiVision(body, key) {
     ]}],
     generationConfig: { maxOutputTokens: 1500, temperature: 0.1 }
   });
-  var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key, {
+  var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload
   });
   var data = await r.json();
