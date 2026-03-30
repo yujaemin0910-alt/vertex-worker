@@ -21,11 +21,15 @@ export default {
         var body = await request.json();
         return await handleGroq(body, env.GROQ_KEY);
       }
+      if (path === '/ai-gemini' && request.method === 'POST') {
+        var body = await request.json();
+        return await handleGeminiText(body, env.GEMINI_KEY);
+      }
       if (path === '/vision' && request.method === 'POST') {
         var body = await request.json();
-        return await handleVision(body, env.GROQ_KEY);
+        return await handleGeminiVision(body, env.GEMINI_KEY);
       }
-      return makeJson({ status: 'ok', finnhub: !!env.FINNHUB_KEY, groq: !!env.GROQ_KEY }, 200);
+      return makeJson({ status: 'ok', finnhub: !!env.FINNHUB_KEY, groq: !!env.GROQ_KEY, gemini: !!env.GEMINI_KEY }, 200);
     } catch (e) {
       return makeJson({ error: e.message }, 500);
     }
@@ -34,7 +38,6 @@ export default {
 
 async function handleFinnhub(params, key) {
   if (!key) return makeJson({ error: 'FINNHUB_KEY not set' }, 500);
-
   var type = params.get('type');
   var symbol = params.get('symbol') || '';
   var cat = params.get('category') || 'general';
@@ -44,128 +47,101 @@ async function handleFinnhub(params, key) {
   var t = '&token=' + key;
   var b = 'https://finnhub.io/api/v1';
   var u;
-
-  if (type === 'quote') {
-    u = b + '/quote?symbol=' + symbol + t;
-  } else if (type === 'profile') {
-    u = b + '/stock/profile2?symbol=' + symbol + t;
-  } else if (type === 'candle') {
-    u = b + '/stock/candle?symbol=' + symbol + '&resolution=' + res + '&from=' + from + '&to=' + to + t;
-  } else if (type === 'news') {
-    u = b + '/news?category=' + cat + t;
-  } else if (type === 'company-news') {
-    u = b + '/company-news?symbol=' + symbol + '&from=' + from + '&to=' + to + t;
-  } else {
-    return makeJson({ error: 'Unknown type' }, 400);
-  }
-
+  if (type === 'quote') { u = b + '/quote?symbol=' + symbol + t; }
+  else if (type === 'profile') { u = b + '/stock/profile2?symbol=' + symbol + t; }
+  else if (type === 'candle') { u = b + '/stock/candle?symbol=' + symbol + '&resolution=' + res + '&from=' + from + '&to=' + to + t; }
+  else if (type === 'news') { u = b + '/news?category=' + cat + t; }
+  else if (type === 'company-news') { u = b + '/company-news?symbol=' + symbol + '&from=' + from + '&to=' + to + t; }
+  else { return makeJson({ error: 'Unknown type' }, 400); }
   var r = await fetch(u, { headers: { 'User-Agent': 'VERTEX' } });
-  var data = await r.json();
-  return makeJson(data, 200);
+  return makeJson(await r.json(), 200);
 }
 
 async function handleGroq(body, key) {
   if (!key) return makeJson({ error: 'GROQ_KEY not set' }, 500);
-
   var messages = body.messages;
   var maxTokens = body.maxTokens || 1000;
   if (!messages) return makeJson({ error: 'messages required' }, 400);
-
   var sys = { role: 'system', content: 'You are a top investment analyst. Respond only in pure JSON.' };
-  var all = [sys].concat(messages);
-
   var payload = JSON.stringify({
     model: 'llama-3.3-70b-versatile',
     max_tokens: maxTokens,
     temperature: 0.7,
-    messages: all
+    messages: [sys].concat(messages)
   });
-
   var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + key
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
     body: payload
   });
-
   var data = await r.json();
   if (data.error) return makeJson({ ok: false, error: data.error.message }, 500);
-
   var text = data.choices[0].message.content || '';
   var cleaned = text.trim();
-  if (cleaned.charAt(0) !== '{' && cleaned.charAt(0) !== '[') {
-    var start = cleaned.indexOf('{');
-    if (start === -1) start = cleaned.indexOf('[');
-    if (start !== -1) cleaned = cleaned.slice(start);
-    var end = cleaned.lastIndexOf('}');
-    var end2 = cleaned.lastIndexOf(']');
-    var endIdx = end > end2 ? end : end2;
-    if (endIdx !== -1) cleaned = cleaned.slice(0, endIdx + 1);
-  }
-
-  try {
-    return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200);
-  } catch (e) {
-    return makeJson({ ok: true, data: { raw: text } }, 200);
-  }
+  var start = cleaned.indexOf('{');
+  if (start > 0) cleaned = cleaned.slice(start);
+  var end = cleaned.lastIndexOf('}');
+  if (end !== -1) cleaned = cleaned.slice(0, end + 1);
+  try { return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200); }
+  catch (e) { return makeJson({ ok: true, data: { raw: text } }, 200); }
 }
 
-async function handleVision(body, key) {
-  if (!key) return makeJson({ error: 'GROQ_KEY not set' }, 500);
-
-  var imageBase64 = body.image;
-  var prompt = body.prompt || 'Extract all stock holdings from this screenshot. Return JSON array with ticker, shares, avgCost fields.';
-
-  if (!imageBase64) return makeJson({ error: 'image required' }, 400);
-
+async function handleGeminiText(body, key) {
+  if (!key) return makeJson({ error: 'GEMINI_KEY not set' }, 500);
+  var prompt = body.prompt;
+  var maxTokens = body.maxTokens || 1000;
+  if (!prompt) return makeJson({ error: 'prompt required' }, 400);
   var payload = JSON.stringify({
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    max_tokens: 1500,
-    temperature: 0.1,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image_url',
-            image_url: { url: 'data:image/jpeg;base64,' + imageBase64 }
-          },
-          {
-            type: 'text',
-            text: prompt
-          }
-        ]
-      }
-    ]
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 }
   });
-
-  var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + key
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: payload
   });
-
   var data = await r.json();
   if (data.error) return makeJson({ ok: false, error: data.error.message }, 500);
+  var text = data.candidates[0].content.parts[0].text || '';
+  var cleaned = text.trim();
+  var start = cleaned.indexOf('{');
+  if (start > 0) cleaned = cleaned.slice(start);
+  var end = cleaned.lastIndexOf('}');
+  if (end !== -1) cleaned = cleaned.slice(0, end + 1);
+  try { return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200); }
+  catch (e) { return makeJson({ ok: true, data: { raw: text } }, 200); }
+}
 
-  var text = data.choices[0].message.content || '';
+async function handleGeminiVision(body, key) {
+  if (!key) return makeJson({ error: 'GEMINI_KEY not set' }, 500);
+  var imageBase64 = body.image;
+  var prompt = body.prompt || '';
+  if (!imageBase64) return makeJson({ error: 'image required' }, 400);
+  var payload = JSON.stringify({
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } },
+        { text: prompt }
+      ]
+    }],
+    generationConfig: { maxOutputTokens: 1500, temperature: 0.1 }
+  });
+  var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: payload
+  });
+  var data = await r.json();
+  if (data.error) return makeJson({ ok: false, error: data.error.message }, 500);
+  var text = data.candidates[0].content.parts[0].text || '';
   var cleaned = text.trim();
   var start = cleaned.indexOf('[');
   if (start !== -1) {
     var end = cleaned.lastIndexOf(']');
     if (end !== -1) cleaned = cleaned.slice(start, end + 1);
   }
-
-  try {
-    return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200);
-  } catch (e) {
-    return makeJson({ ok: true, data: { raw: text } }, 200);
-  }
+  try { return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200); }
+  catch (e) { return makeJson({ ok: true, data: { raw: text } }, 200); }
 }
 
 function makeJson(data, status) {
