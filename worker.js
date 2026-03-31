@@ -126,6 +126,40 @@ async function handleGeminiVision(body, key) {
   try { return makeJson({ ok: true, data: JSON.parse(cleaned) }, 200); }
   catch (e) { return makeJson({ ok: true, data: { raw: text } }, 200); }
 }
+async function handleGroqVision(body, key) {
+  if (!key) return makeJson({ error: "GROQ_KEY not set" }, 500);
+  const { image, prompt } = body;
+  if (!image) return makeJson({ error: "image required" }, 400);
+  const payload = JSON.stringify({
+    model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    max_tokens: 1500,
+    temperature: 0.1,
+    messages: [{
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: "data:image/jpeg;base64," + image } },
+        { type: "text", text: prompt }
+      ]
+    }]
+  });
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+    body: payload
+  });
+  const data = await r.json();
+  if (data.error) return makeJson({ ok: false, error: data.error.message }, 500);
+  const text = data.choices[0].message.content || "";
+  const cleaned = text.trim();
+  const start = cleaned.indexOf("[");
+  if (start !== -1) {
+    const end = cleaned.lastIndexOf("]");
+    if (end !== -1) {
+      try { return makeJson({ ok: true, data: JSON.parse(cleaned.slice(start, end + 1)) }, 200); } catch(e) {}
+    }
+  }
+  return makeJson({ ok: true, data: { raw: text } }, 200);
+}
 
 async function handleCrawl(body) {
   var url = body.url;
