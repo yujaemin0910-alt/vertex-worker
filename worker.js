@@ -17,7 +17,7 @@ export default {
       if (path === '/fh') return await handleFinnhub(url.searchParams, env.FINNHUB_KEY);
       if (path === '/ai' && request.method === 'POST') return await handleGroq(await request.json(), env.GROQ_KEY);
       if (path === '/ai-gemini' && request.method === 'POST') return await handleGeminiText(await request.json(), env.GEMINI_KEY);
-      if (path === '/vision' && request.method === 'POST') return await handleGeminiVision(await request.json(), env.GEMINI_KEY);
+      if (path === '/vision' && request.method === 'POST') return await handleGroqVision(await request.json(), env.GROQ_KEY);
       if (path === '/crawl' && request.method === 'POST') return await handleCrawl(await request.json());
       return makeJson({ status: 'ok', finnhub: !!env.FINNHUB_KEY, groq: !!env.GROQ_KEY, gemini: !!env.GEMINI_KEY }, 200);
     } catch (e) {
