@@ -15,8 +15,12 @@ var OR_MODELS = [
   "meta-llama/llama-3.3-70b-instruct:free",
   "meta-llama/llama-3.1-8b-instruct:free",
   "google/gemma-2-9b-it:free",
+  "google/gemma-3-12b-it:free",
   "mistralai/mistral-7b-instruct:free",
-  "qwen/qwen-2-7b-instruct:free"
+  "deepseek/deepseek-r1-distill-llama-70b:free",
+  "deepseek/deepseek-chat-v3-0324:free",
+  "microsoft/phi-3-mini-128k-instruct:free",
+  "nousresearch/hermes-3-llama-3.1-405b:free"
 ];
 
 var SYS_PROMPT = "당신은 월스트리트 최고 투자 애널리스트입니다. 반드시 순수 JSON만 응답하세요. 한자·중국어·일본어·베트남어 등 기타 언어는 단 1글자도 포함하지 마세요. 모든 텍스트는 한국어 또는 영어(티커·고유명사)로만 작성하세요. 기사에 없는 내용은 절대 지어내지 마세요.";
