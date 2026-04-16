@@ -10,7 +10,7 @@ var CORS = {
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
-var GROQ_MODEL = "llama-3.1-8b-instant";
+var GROQ_MODEL = "llama-3.3-70b-versatile";
 
 var SYS_PROMPT = "당신은 월스트리트 최고 투자 애널리스트입니다. 반드시 순수 JSON만 응답하세요. 한자·중국어·일본어·베트남어 등 기타 언어는 단 1글자도 포함하지 마세요. 모든 텍스트는 한국어 또는 영어(티커·고유명사)로만 작성하세요. 기사에 없는 내용은 절대 지어내지 마세요.";
 
